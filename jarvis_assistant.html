@@ -75,7 +75,7 @@
             background-color: #ffffff; /* Fondo blanco */
             align-items: center; /* Centrar verticalmente los elementos */
         }
-        .input-area input {
+        .input-area input[type="text"] {
             flex-grow: 1;
             padding: 0.75rem 1rem;
             border-radius: 1.5rem;
@@ -85,7 +85,7 @@
             outline: none;
             transition: border-color 0.2s;
         }
-        .input-area input:focus {
+        .input-area input[type="text"]:focus {
             border-color: #3b82f6; /* Azul al enfocar */
         }
         .input-area button {
@@ -163,12 +163,86 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .voice-select-container {
+            padding: 0 1rem 1rem 1rem;
+            display: flex;
+            justify-content: flex-end; /* Align to the right */
+            align-items: center;
+            gap: 0.5rem;
+            background-color: #ffffff;
+            border-top: 1px solid #bfdbfe;
+        }
+        .voice-select-container label {
+            font-size: 0.85rem;
+            color: #1a202c;
+        }
+        .voice-select-container select {
+            padding: 0.4rem 0.8rem;
+            border-radius: 0.75rem;
+            border: 1px solid #93c5fd;
+            background-color: #f8fafc;
+            color: #1a202c;
+            outline: none;
+            cursor: pointer;
+        }
+        .file-input-area {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background-color: #ffffff;
+            border-top: 1px solid #bfdbfe;
+        }
+        .file-input-area input[type="file"] {
+            display: none; /* Ocultar el input de archivo original */
+        }
+        .file-input-area label {
+            background-color: #3b82f6;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 1.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .file-input-area label:hover {
+            background-color: #2563eb;
+            transform: translateY(-1px);
+        }
+        .file-input-area label:active {
+            background-color: #1e40af;
+            transform: translateY(0);
+        }
+        .file-name-display {
+            flex-grow: 1;
+            font-size: 0.85rem;
+            color: #4a5568; /* Gris oscuro */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .clear-file-button {
+            background-color: #ef4444; /* Rojo */
+            color: white;
+            padding: 0.3rem 0.6rem;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.7rem;
+            line-height: 1;
+            border: none;
+            display: none; /* Oculto por defecto */
+        }
+        .clear-file-button:hover {
+            background-color: #dc2626;
+        }
     </style>
 </head>
 <body>
     <div class="chat-container">
         <div class="chat-header">
             Asistente Sergio
+            <!-- Los indicadores de estado de TTS y SR han sido eliminados para una interfaz más limpia -->
         </div>
         <div class="messages" id="messages">
             <div class="message-bubble assistant-message">
@@ -178,12 +252,27 @@
         <div class="loading-indicator" id="loading-indicator" style="display: none;">
             <span class="spinner"></span> Sergio está pensando...
         </div>
+        <div class="file-input-area">
+            <label for="file-input">Adjuntar Archivo</label>
+            <input type="file" id="file-input" accept="image/*, text/plain">
+            <span id="file-name-display" class="file-name-display">Ningún archivo seleccionado.</span>
+            <button id="clear-file-button" class="clear-file-button">X</button>
+        </div>
         <div class="input-area">
             <button id="microphone-button" class="microphone-button">
                 <i class="fas fa-microphone text-white text-xl"></i>
             </button>
             <input type="text" id="user-input" placeholder="Escribe tu mensaje o presiona el micrófono..." class="rounded-full">
             <button id="send-button" class="rounded-full">Enviar</button>
+        </div>
+        <div class="voice-select-container">
+            <label for="voice-selector">Voz:</label>
+            <select id="voice-selector">
+                <option value="Charon">Charon (Masculina Profunda)</option>
+                <option value="Aoede">Aoede (Femenina Melodiosa)</option>
+                <option value="Fenrir">Fenrir (Masculina Fuerte)</option>
+                <option value="Puck">Puck (Neutral Versátil)</option>
+            </select>
         </div>
     </div>
 
@@ -194,6 +283,10 @@
         const sendButton = document.getElementById('send-button');
         const loadingIndicator = document.getElementById('loading-indicator');
         const microphoneButton = document.getElementById('microphone-button');
+        const voiceSelector = document.getElementById('voice-selector');
+        const fileInput = document.getElementById('file-input');
+        const fileNameDisplay = document.getElementById('file-name-display');
+        const clearFileButton = document.getElementById('clear-file-button');
 
         // Historial de chat para mantener el contexto de la conversación
         // Se ha modificado el mensaje inicial para establecer el género masculino de Sergio
@@ -203,6 +296,9 @@
         // Variables para el reconocimiento de voz
         let recognition;
         let isRecording = false;
+
+        // Variable para almacenar el archivo adjunto
+        let attachedFile = null; // { data: base64String/textString, mimeType: string }
 
         // Función para mostrar mensajes en la interfaz de chat
         function displayMessage(text, sender) {
@@ -225,6 +321,9 @@
             sendButton.disabled = true;
             userInput.disabled = true;
             microphoneButton.disabled = true; // Deshabilitar micrófono también
+            voiceSelector.disabled = true;
+            fileInput.disabled = true; // Deshabilitar input de archivo
+            clearFileButton.disabled = true; // Deshabilitar botón de limpiar archivo
         }
 
         // Función para ocultar el indicador de carga
@@ -233,6 +332,11 @@
             sendButton.disabled = false;
             userInput.disabled = false;
             microphoneButton.disabled = false; // Habilitar micrófono
+            voiceSelector.disabled = false;
+            fileInput.disabled = false; // Habilitar input de archivo
+            if (attachedFile) {
+                clearFileButton.disabled = false; // Habilitar si hay archivo
+            }
             userInput.focus(); // Vuelve a enfocar el input
         }
 
@@ -330,13 +434,49 @@
             }
         }
 
-        // Función para llamar a la API de Gemini para generación de texto
-        async function callGeminiTextAPI(prompt) {
-            // Añadir el mensaje del usuario al historial de chat
-            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+        // Función para llamar a la API de Gemini para generación de texto (ahora soporta archivos)
+        async function callGeminiTextAPI(prompt, fileData = null) {
+            // Construir los 'parts' para la API de Gemini
+            let parts = [];
+
+            // Añadir el mensaje de texto del usuario
+            if (prompt) {
+                parts.push({ text: prompt });
+            }
+
+            // Añadir el archivo adjunto si existe
+            if (fileData) {
+                if (fileData.mimeType.startsWith('image/')) {
+                    // Para imágenes, usar inlineData con el base64
+                    parts.push({
+                        inlineData: {
+                            mimeType: fileData.mimeType,
+                            data: fileData.data // Ya es base64
+                        }
+                    });
+                } else if (fileData.mimeType.startsWith('text/plain')) {
+                    // Para texto plano, añadir como un nuevo part de texto
+                    parts.push({ text: `Contenido del archivo adjunto:\n${fileData.data}` });
+                } else {
+                    console.warn(`Tipo de archivo no soportado para análisis: ${fileData.mimeType}`);
+                    displayMessage(`Lo siento, el tipo de archivo '${fileData.mimeType}' no es compatible para el análisis.`, 'assistant');
+                    return "Tipo de archivo no compatible.";
+                }
+            }
+
+            // Si no hay prompt ni archivo, no hacer la llamada
+            if (parts.length === 0) {
+                return "No se proporcionó entrada (texto o archivo).";
+            }
+
+            // Añadir el mensaje del usuario al historial de chat (solo texto)
+            // El historial de chat solo almacena texto para mantener el contexto de la conversación.
+            // Los datos de la imagen/archivo se envían como parte de la solicitud actual.
+            chatHistory.push({ role: "user", parts: [{ text: prompt || "Archivo adjunto" }] });
+
 
             const payload = {
-                contents: chatHistory,
+                contents: chatHistory.concat([{ role: "user", parts: parts }]), // Añadir la entrada actual al final
             };
 
             // Usar la clave de API proporcionada por el usuario
@@ -346,7 +486,7 @@
             const maxRetries = 5;
             let retryCount = 0;
             let delay = 1000;
-            const timeoutMs = 15000; // 15 segundos de timeout para la generación de texto
+            const timeoutMs = 30000; // Aumentado a 30 segundos para permitir el análisis de archivos
 
             while (retryCount < maxRetries) {
                 const controller = new AbortController();
@@ -362,10 +502,14 @@
                     clearTimeout(id); // Limpiar el timeout si la petición se completa a tiempo
 
                     if (!response.ok) {
-                        if (response.status >= 400 && response.status < 500) {
+                        if (response.status === 429) { // Manejo específico para error de cuota
+                            const errorBody = await response.json(); // Obtener el cuerpo JSON para detalles
+                            const quotaMessage = errorBody.error.message || "Has excedido la cuota de uso de la API de voz.";
+                            throw new Error(`Error de cuota de la API de voz: ${quotaMessage}. Por favor, espera o revisa tu cuota.`);
+                        } else if (response.status >= 400 && response.status < 500) {
                             const errorBody = await response.text(); // Intentar obtener más detalles
                             console.error(`API de texto: Error de cliente (${response.status}): ${errorBody}`);
-                            throw new Error(`Error de la API de texto: ${response.statusText} - ${errorBody.substring(0, Math.min(errorBody.length, 100))}...`);
+                            throw new Error(`Error de la API de texto: ${response.statusText} - ${errorBody.substring(0, Math.min(errorBody.length, 200))}...`);
                         } else if (response.status >= 500) {
                             console.warn(`Intento ${retryCount + 1} fallido con estado ${response.status}. Reintentando en ${delay / 1000}s...`);
                             await new Promise(res => setTimeout(res, delay));
@@ -408,7 +552,7 @@
         }
 
         // Función para llamar a la API de Gemini para síntesis de voz
-        async function callGeminiTTSAPI(textToSpeak) {
+        async function callGeminiTTSAPI(textToSpeak, voice) {
             console.log("callGeminiTTSAPI: Solicitando TTS para el texto (primeras 50 chars):", textToSpeak.substring(0, 50) + "...");
             const payload = {
                 contents: [{
@@ -418,7 +562,7 @@
                     responseModalities: ["AUDIO"],
                     speechConfig: {
                         voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: "Charon" } // Voz "Charon" para un tono informativo y masculino
+                            prebuiltVoiceConfig: { voiceName: voice } // Usa la voz seleccionada
                         }
                     }
                 },
@@ -448,16 +592,18 @@
                     clearTimeout(id); // Limpiar el timeout si la petición se completa a tiempo
 
                     if (!response.ok) {
-                        // Intentar obtener más detalles del error si no es una respuesta OK
-                        const errorBody = await response.text();
-                        console.error(`TTS: Error de cliente (${response.status}): ${errorBody}`);
+                        if (response.status === 429) { // Manejo específico para error de cuota
+                            const errorBody = await response.json(); // Obtener el cuerpo JSON para detalles
+                            const quotaMessage = errorBody.error.message || "Has excedido la cuota de uso de la API de voz.";
+                            throw new Error(`Error de cuota de la API de voz: ${quotaMessage}. Por favor, espera o revisa tu cuota.`);
+                        } else if (response.status >= 400 && response.status < 500) {
+                            // Intentar obtener más detalles del error si no es una respuesta OK
+                            const errorBody = await response.text();
+                            console.error(`TTS: Error de cliente (${response.status}): ${errorBody}`);
 
-                        if (response.status >= 400 && response.status < 500) {
-                            // Si es un error de cliente (ej. 401 Unauthorized, 403 Forbidden)
                             throw new Error(`Error de la API TTS: ${response.statusText} - ${errorBody.substring(0, Math.min(errorBody.length, 100))}...`);
                         } else if (response.status >= 500) {
-                            // Si es un error del servidor, reintentar
-                            console.warn(`TTS: Intento ${retryCount + 1} fallido con estado ${response.status}. Reintentando en ${delay / 1000}s...`);
+                            console.warn(`Intento ${retryCount + 1} fallido con estado ${response.status}. Reintentando en ${delay / 1000}s...`);
                             await new Promise(res => setTimeout(res, delay));
                             delay *= 2;
                             retryCount++;
@@ -485,15 +631,15 @@
                         console.error("API TTS: La solicitud excedió el tiempo límite.");
                         throw new Error("Lo siento, la generación de voz excedió el tiempo límite.");
                     }
-                    console.error("callGeminiTTSAPI: Error al llamar a la API TTS de Gemini:", error);
+                    console.error("Error al llamar a la API TTS de Gemini:", error);
                     if (error instanceof TypeError) {
-                        console.error("callGeminiTTSAPI: Posible error de red o CORS:", error.message);
+                        console.error("API TTS: Posible error de red o CORS:", error.message);
                     } else if (error.response) {
                         try {
                             const errorBody = await error.response.text();
-                            console.error("callGeminiTTSAPI: Respuesta de error del servidor:", errorBody);
+                            console.error("API TTS: Respuesta de error del servidor:", errorBody);
                         } catch (e) {
-                            console.error("callGeminiTTSAPI: No se pudo leer el cuerpo del error de la respuesta.");
+                            console.error("API TTS: No se pudo leer el cuerpo del error de la respuesta.");
                         }
                     }
                     if (retryCount < maxRetries - 1) {
@@ -513,24 +659,29 @@
         // Función para manejar el envío de mensajes
         async function sendMessage() {
             const message = userInput.value.trim();
-            if (message === '') return;
+            // Si no hay mensaje y no hay archivo adjunto, no hacer nada
+            if (message === '' && !attachedFile) {
+                displayMessage("Por favor, escribe un mensaje o adjunta un archivo para que Sergio lo analice.", 'assistant');
+                return;
+            }
 
-            displayMessage(message, 'user');
+            displayMessage(message || "Archivo adjunto", 'user'); // Muestra "Archivo adjunto" si solo se envía un archivo
             userInput.value = ''; // Limpiar el input
 
             showLoading(); // Mostrar indicador de carga
 
             try {
-                // 1. Obtener la respuesta de texto del LLM
-                const assistantResponseText = await callGeminiTextAPI(message);
+                // 1. Obtener la respuesta de texto del LLM (ahora con soporte para archivo)
+                const assistantResponseText = await callGeminiTextAPI(message, attachedFile);
                 displayMessage(assistantResponseText, 'assistant');
 
                 // 2. Convertir la respuesta de texto a voz usando la API TTS
                 // Solo intentar TTS si la respuesta de texto es válida y no un mensaje de error
-                if (assistantResponseText && !assistantResponseText.startsWith("Lo siento,")) {
-                    const audioResult = await callGeminiTTSAPI(assistantResponseText);
+                if (assistantResponseText && !assistantResponseText.startsWith("Lo siento,") && !assistantResponseText.startsWith("Tipo de archivo no compatible.")) {
+                    const selectedVoice = voiceSelector.value; // Obtener la voz seleccionada
+                    const audioResult = await callGeminiTTSAPI(assistantResponseText, selectedVoice);
                     if (audioResult) {
-                        await playAudio(audioResult.audioData, audioResult.mimeType);
+                        await playAudio(audioResult.data, audioResult.mimeType);
                     } else {
                         console.warn("No se pudo generar audio para la respuesta TTS. Revisar logs de callGeminiTTSAPI.");
                     }
@@ -540,9 +691,14 @@
 
             } catch (error) {
                 console.error("Error general en sendMessage:", error);
+                // Mostrar el mensaje de error específico de la API si está disponible
                 displayMessage(`Lo siento, ocurrió un error: ${error.message || "desconocido"}. Por favor, inténtalo de nuevo.`, 'assistant');
             } finally {
                 hideLoading(); // Ocultar indicador de carga SIEMPRE
+                attachedFile = null; // Limpiar el archivo adjunto después de enviar
+                fileNameDisplay.textContent = "Ningún archivo seleccionado.";
+                clearFileButton.style.display = 'none';
+                fileInput.value = ''; // Resetear el input de archivo
             }
         }
 
@@ -559,6 +715,9 @@
                 userInput.placeholder = "Escuchando...";
                 userInput.disabled = true;
                 sendButton.disabled = true;
+                voiceSelector.disabled = true;
+                fileInput.disabled = true;
+                clearFileButton.disabled = true;
             };
 
             recognition.onresult = (event) => {
@@ -569,6 +728,11 @@
                 userInput.placeholder = "Escribe tu mensaje o presiona el micrófono...";
                 userInput.disabled = false;
                 sendButton.disabled = false;
+                voiceSelector.disabled = false;
+                fileInput.disabled = false;
+                if (attachedFile) {
+                    clearFileButton.disabled = false;
+                }
                 sendMessage();
             };
 
@@ -586,6 +750,11 @@
                 userInput.placeholder = "Escribe tu mensaje o presiona el micrófono...";
                 userInput.disabled = false;
                 sendButton.disabled = false;
+                voiceSelector.disabled = false;
+                fileInput.disabled = false;
+                if (attachedFile) {
+                    clearFileButton.disabled = false;
+                }
             };
 
             recognition.onend = () => {
@@ -595,6 +764,11 @@
                     userInput.placeholder = "Escribe tu mensaje o presiona el micrófono...";
                     userInput.disabled = false;
                     sendButton.disabled = false;
+                    voiceSelector.disabled = false;
+                    fileInput.disabled = false;
+                    if (attachedFile) {
+                        clearFileButton.disabled = false;
+                    }
                 }
             };
 
@@ -612,6 +786,11 @@
                         userInput.placeholder = "Escribe tu mensaje o presiona el micrófono...";
                         userInput.disabled = false;
                         sendButton.disabled = false;
+                        voiceSelector.disabled = false;
+                        fileInput.disabled = false;
+                        if (attachedFile) {
+                            clearFileButton.disabled = false;
+                        }
                     }
                 }
             });
@@ -621,6 +800,70 @@
             microphoneButton.title = "Tu navegador no soporta el reconocimiento de voz.";
             displayMessage("Tu navegador no soporta el reconocimiento de voz. Por favor, usa la entrada de texto.", 'assistant');
         }
+
+        // --- Lógica de Manejo de Archivos ---
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                fileNameDisplay.textContent = file.name;
+                clearFileButton.style.display = 'inline-block';
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    let fileContent;
+                    let mimeType = file.type;
+
+                    if (mimeType.startsWith('image/')) {
+                        // Para imágenes, obtener solo la parte Base64 sin el prefijo data:image/...
+                        fileContent = e.target.result.split(',')[1];
+                    } else if (mimeType.startsWith('text/plain')) {
+                        fileContent = e.target.result;
+                    } else {
+                        // Tipo de archivo no compatible, limpiar y notificar
+                        displayMessage(`El tipo de archivo '${file.type}' no es compatible para el análisis. Por favor, selecciona una imagen o un archivo de texto.`, 'assistant');
+                        fileInput.value = ''; // Limpiar el input
+                        fileNameDisplay.textContent = "Ningún archivo seleccionado.";
+                        clearFileButton.style.display = 'none';
+                        attachedFile = null;
+                        return;
+                    }
+
+                    attachedFile = {
+                        data: fileContent,
+                        mimeType: mimeType
+                    };
+                    console.log(`Archivo adjunto: ${file.name}, Tipo: ${file.type}`);
+                };
+
+                // Leer el archivo según su tipo
+                if (file.type.startsWith('image/')) {
+                    reader.readAsDataURL(file); // Para imágenes, leer como URL de datos (Base64)
+                } else if (file.type.startsWith('text/plain')) {
+                    reader.readAsText(file); // Para texto, leer como texto
+                } else {
+                    // Si el tipo no es soportado, no leerlo y resetear
+                    displayMessage(`El tipo de archivo '${file.type}' no es compatible para el análisis. Por favor, selecciona una imagen o un archivo de texto.`, 'assistant');
+                    fileInput.value = ''; // Limpiar el input
+                    fileNameDisplay.textContent = "Ningún archivo seleccionado.";
+                    clearFileButton.style.display = 'none';
+                    attachedFile = null;
+                }
+
+            } else {
+                fileNameDisplay.textContent = "Ningún archivo seleccionado.";
+                clearFileButton.style.display = 'none';
+                attachedFile = null;
+            }
+        });
+
+        clearFileButton.addEventListener('click', () => {
+            fileInput.value = ''; // Limpiar el input de archivo
+            fileNameDisplay.textContent = "Ningún archivo seleccionado.";
+            clearFileButton.style.display = 'none';
+            attachedFile = null; // Limpiar la variable del archivo adjunto
+            displayMessage("Archivo adjunto eliminado.", 'assistant');
+        });
+
 
         // Event listeners existentes
         sendButton.addEventListener('click', sendMessage);
@@ -633,6 +876,8 @@
         // Asegurarse de que el input esté enfocado al cargar la página
         window.onload = () => {
             userInput.focus();
+            // Establecer la voz por defecto al cargar
+            voiceSelector.value = "Charon";
         };
     </script>
 </body>
