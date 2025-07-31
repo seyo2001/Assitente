@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asistente Virtual Sergio</title>
+    <!-- Carga de Tailwind CSS para estilos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome para el icono del micrófono -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #e0f2f7; /* Azul muy claro, casi blanco */
+            color: #1a202c; /* Texto negro */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden; /* Evitar scroll si la armadura es grande */
+        }
+        .chat-container {
+            background-color: #ffffff; /* Fondo blanco para el chat */
+            border-radius: 1.5rem; /* Bordes más redondeados */
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2); /* Sombra más suave */
+            width: 90%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #bfdbfe; /* Borde azul claro */
+        }
+        .chat-header {
+            background-color: #2563eb; /* Azul fuerte para el encabezado */
+            padding: 1rem;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #ffffff; /* Texto blanco en el encabezado */
+            border-bottom: 1px solid #1e40af; /* Borde azul oscuro */
+        }
+        .messages {
+            flex-grow: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            max-height: 70vh; /* Altura máxima para el scroll */
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem; /* Espacio entre mensajes */
+        }
+        .message-bubble {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 1rem;
+            word-wrap: break-word;
+        }
+        .user-message {
+            background-color: #3b82f6; /* Azul para el usuario */
+            align-self: flex-end;
+            color: white;
+            border-bottom-right-radius: 0.25rem; /* Esquina más cuadrada para el usuario */
+        }
+        .assistant-message {
+            background-color: #e0f2f7; /* Azul muy claro para el asistente */
+            align-self: flex-start;
+            color: #1a202c; /* Texto negro para el asistente */
+            border-bottom-left-radius: 0.25rem; /* Esquina más cuadrada para el asistente */
+        }
+        .input-area {
+            display: flex;
+            padding: 1rem;
+            border-top: 1px solid #bfdbfe; /* Borde azul claro */
+            background-color: #ffffff; /* Fondo blanco */
+            align-items: center; /* Centrar verticalmente los elementos */
+        }
+        .input-area input {
+            flex-grow: 1;
+            padding: 0.75rem 1rem;
+            border-radius: 1.5rem;
+            border: 1px solid #93c5fd; /* Borde azul suave */
+            background-color: #f8fafc; /* Blanco muy ligero */
+            color: #1a202c; /* Texto negro */
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-area input:focus {
+            border-color: #3b82f6; /* Azul al enfocar */
+        }
+        .input-area button {
+            background-color: #3b82f6; /* Azul para el botón Enviar */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 1.5rem;
+            margin-left: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .input-area button:hover {
+            background-color: #2563eb; /* Azul más oscuro al pasar el ratón */
+            transform: translateY(-1px);
+        }
+        .input-area button:active {
+            background-color: #1e40af; /* Azul aún más oscuro al hacer clic */
+            transform: translateY(0);
+        }
+        .input-area button:disabled {
+            background-color: #94a3b8; /* Gris claro cuando está deshabilitado */
+            cursor: not-allowed;
+        }
+        .microphone-button {
+            background-color: #3b82f6; /* Azul para el micrófono */
+            padding: 0.75rem; /* Ajustar padding para el icono */
+            border-radius: 50%; /* Hacerlo circular */
+            width: 48px; /* Ancho fijo */
+            height: 48px; /* Alto fijo */
+            margin-right: 0.75rem; /* Espacio a la derecha del input */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+        .microphone-button:hover {
+            background-color: #2563eb; /* Azul más oscuro al pasar el ratón */
+        }
+        .microphone-button.recording {
+            background-color: #1e40af; /* Azul muy oscuro cuando está grabando */
+            animation: pulse 1s infinite alternate; /* Animación de pulsación */
+        }
+        @keyframes pulse {
+            from { transform: scale(1); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); } /* Sombra azul */
+            to { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); } /* Sombra azul que se desvanece */
+        }
+
+        .loading-indicator {
+            text-align: center;
+            padding: 1rem;
+            color: #2563eb; /* Azul para el texto de carga */
+            font-style: italic;
+            font-size: 0.9rem; /* Ajuste de tamaño de fuente */
+        }
+
+        /* Estilos para el spinner */
+        .spinner {
+            border: 4px solid rgba(37, 99, 235, 0.3); /* Azul claro para el spinner */
+            border-top: 4px solid #2563eb; /* Azul fuerte para la parte animada */
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            Asistente Sergio
+        </div>
+        <div class="messages" id="messages">
+            <div class="message-bubble assistant-message">
+                Saludos. Soy Sergio, tu asistente virtual. Mis respuestas serán concisas, profesionales y técnicas, con un enfoque masculino. ¿En qué puedo ayudarte hoy?
+            </div>
+        </div>
+        <div class="loading-indicator" id="loading-indicator" style="display: none;">
+            <span class="spinner"></span> Sergio está pensando...
+        </div>
+        <div class="input-area">
+            <button id="microphone-button" class="microphone-button">
+                <i class="fas fa-microphone text-white text-xl"></i>
+            </button>
+            <input type="text" id="user-input" placeholder="Escribe tu mensaje o presiona el micrófono..." class="rounded-full">
+            <button id="send-button" class="rounded-full">Enviar</button>
+        </div>
+    </div>
+
+    <script type="module">
+        // Referencias a elementos del DOM
+        const messagesDiv = document.getElementById('messages');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const microphoneButton = document.getElementById('microphone-button');
+
+        // Historial de chat para mantener el contexto de la conversación
+        // Se ha modificado el mensaje inicial para establecer el género masculino de Sergio
+        // y para que sus respuestas sean cortas, profesionales y técnicas.
+        let chatHistory = [{ role: "model", parts: [{ text: "Saludos. Soy Sergio, tu asistente virtual. Mis respuestas serán concisas, profesionales y técnicas, con un enfoque masculino. ¿En qué puedo ayudarte hoy?" }] }];
+
+        // Variables para el reconocimiento de voz
+        let recognition;
+        let isRecording = false;
+
+        // Función para mostrar mensajes en la interfaz de chat
+        function displayMessage(text, sender) {
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('message-bubble');
+            if (sender === 'user') {
+                messageBubble.classList.add('user-message');
+            } else {
+                messageBubble.classList.add('assistant-message');
+            }
+            messageBubble.textContent = text;
+            messagesDiv.appendChild(messageBubble);
+            // Desplazar hacia abajo para ver el último mensaje
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Función para mostrar el indicador de carga
+        function showLoading() {
+            loadingIndicator.style.display = 'block';
+            sendButton.disabled = true;
+            userInput.disabled = true;
+            microphoneButton.disabled = true; // Deshabilitar micrófono también
+        }
+
+        // Función para ocultar el indicador de carga
+        function hideLoading() {
+            loadingIndicator.style.display = 'none';
+            sendButton.disabled = false;
+            userInput.disabled = false;
+            microphoneButton.disabled = false; // Habilitar micrófono
+            userInput.focus(); // Vuelve a enfocar el input
+        }
+
+        // --- Funciones para la Síntesis de Voz (TTS) ---
+
+        // Convierte una cadena base64 a un ArrayBuffer
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // Convierte datos PCM (Pulse Code Modulation) a un archivo WAV Blob
+        function pcmToWav(pcmData, sampleRate) {
+            const pcm16 = new Int16Array(pcmData);
+            const dataLength = pcm16.length * 2; // 2 bytes por muestra (PCM de 16 bits)
+            const buffer = new ArrayBuffer(44 + dataLength); // 44 bytes para el encabezado WAV
+
+            const view = new DataView(buffer);
+            let offset = 0;
+
+            // RIFF chunk descriptor
+            writeString(view, offset, 'RIFF'); offset += 4;
+            view.setUint32(offset, 36 + dataLength, true); offset += 4;
+            writeString(view, offset, 'WAVE'); offset += 4;
+
+            // FMT sub-chunk
+            writeString(view, offset, 'fmt '); offset += 4;
+            view.setUint32(offset, 16, true); offset += 4; // Sub-chunk size
+            view.setUint16(offset, 1, true); offset += 2; // Audio format (1 = PCM)
+            view.setUint16(offset, 1, true); offset += 2; // Num channels (1 = Mono)
+            view.setUint32(offset, sampleRate, true); offset += 4; // Sample rate
+            view.setUint32(offset, sampleRate * 1 * 2, true); offset += 4; // Byte rate (SampleRate * NumChannels * BitsPerSample/8)
+            view.setUint16(offset, 1 * 2, true); offset += 2; // Block align (NumChannels * BitsPerSample/8)
+            view.setUint16(offset, 16, true); offset += 2; // Bits per sample
+
+            // DATA sub-chunk
+            writeString(view, offset, 'data'); offset += 4;
+            view.setUint32(offset, dataLength, true); offset += 4;
+
+            // Write PCM data
+            for (let i = 0; i < pcm16.length; i++) {
+                view.setInt16(offset, pcm16[i], true);
+                offset += 2;
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        // Helper para escribir cadenas en DataView
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        // Reproduce el audio decodificado
+        async function playAudio(audioData, mimeType) {
+            console.log("playAudio: Iniciando reproducción de audio.");
+            console.log("playAudio: mimeType recibido:", mimeType);
+            try {
+                const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                // Default to 16000 if sample rate cannot be extracted
+                const sampleRate = sampleRateMatch && sampleRateMatch[1] ? parseInt(sampleRateMatch[1], 10) : 16000;
+                console.log("playAudio: Sample Rate determinado:", sampleRate);
+
+                const pcmData = base64ToArrayBuffer(audioData);
+                console.log("playAudio: PCM Data ArrayBuffer length:", pcmData.byteLength);
+
+                const wavBlob = pcmToWav(pcmData, sampleRate);
+                console.log("playAudio: WAV Blob creado, tamaño:", wavBlob.size, "tipo:", wavBlob.type);
+
+                const audioUrl = URL.createObjectURL(wavBlob);
+                console.log("playAudio: Audio URL creado:", audioUrl);
+
+                const audio = new Audio(audioUrl);
+                audio.oncanplaythrough = () => console.log("playAudio: El audio puede reproducirse completamente.");
+                audio.onended = () => {
+                    console.log("playAudio: Reproducción de audio finalizada.");
+                    URL.revokeObjectURL(audioUrl); // Revocar aquí es más seguro
+                };
+                audio.onerror = (e) => {
+                    console.error("playAudio: Error durante la reproducción de audio:", e);
+                    URL.revokeObjectURL(audioUrl); // Revocar también en caso de error
+                };
+
+                await audio.play();
+                console.log("playAudio: Reproducción de audio iniciada.");
+            } catch (error) {
+                console.error("playAudio: Error al reproducir el audio:", error);
+            }
+        }
+
+        // Función para llamar a la API de Gemini para generación de texto
+        async function callGeminiTextAPI(prompt) {
+            // Añadir el mensaje del usuario al historial de chat
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+            const payload = {
+                contents: chatHistory,
+            };
+
+            // Usar la clave de API proporcionada por el usuario
+            const apiKey = "AIzaSyAGM24v3Tg7U88W2feEB08k4dK5FreTJ4U";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            const maxRetries = 5;
+            let retryCount = 0;
+            let delay = 1000;
+            const timeoutMs = 15000; // 15 segundos de timeout para la generación de texto
+
+            while (retryCount < maxRetries) {
+                const controller = new AbortController();
+                const id = setTimeout(() => controller.abort(), timeoutMs); // Establecer timeout
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        signal: controller.signal // Adjuntar la señal de aborto
+                    });
+                    clearTimeout(id); // Limpiar el timeout si la petición se completa a tiempo
+
+                    if (!response.ok) {
+                        if (response.status >= 400 && response.status < 500) {
+                            const errorBody = await response.text(); // Intentar obtener más detalles
+                            console.error(`API de texto: Error de cliente (${response.status}): ${errorBody}`);
+                            throw new Error(`Error de la API de texto: ${response.statusText} - ${errorBody.substring(0, Math.min(errorBody.length, 100))}...`);
+                        } else if (response.status >= 500) {
+                            console.warn(`Intento ${retryCount + 1} fallido con estado ${response.status}. Reintentando en ${delay / 1000}s...`);
+                            await new Promise(res => setTimeout(res, delay));
+                            delay *= 2;
+                            retryCount++;
+                            continue;
+                        } else {
+                            throw new Error(`Error de la API de texto: ${response.statusText}`);
+                        }
+                    }
+
+                    const result = await response.json();
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        chatHistory.push({ role: "model", parts: [{ text: text }] });
+                        return text;
+                    } else {
+                        console.error("Estructura de respuesta inesperada de la API de texto:", result);
+                        return "Lo siento, no pude obtener una respuesta coherente. Por favor, inténtalo de nuevo.";
+                    }
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        console.error("API de texto: La solicitud excedió el tiempo límite.");
+                        throw new Error("Lo siento, la generación de texto excedió el tiempo límite. Por favor, inténtalo de nuevo.");
+                    }
+                    console.error("Error al llamar a la API de texto de Gemini:", error);
+                    if (retryCount < maxRetries - 1) {
+                        console.warn(`Intento ${retryCount + 1} fallido. Reintentando en ${delay / 1000}s...`);
+                        await new Promise(res => setTimeout(res, delay));
+                        delay *= 2;
+                        retryCount++;
+                    } else {
+                        return "Lo siento, hubo un problema al conectar con el asistente. Por favor, inténtalo más tarde.";
+                    }
+                }
+            }
+            return "Lo siento, no pude obtener una respuesta después de varios intentos. Por favor, inténtalo más tarde.";
+        }
+
+        // Función para llamar a la API de Gemini para síntesis de voz
+        async function callGeminiTTSAPI(textToSpeak) {
+            console.log("callGeminiTTSAPI: Solicitando TTS para el texto (primeras 50 chars):", textToSpeak.substring(0, 50) + "...");
+            const payload = {
+                contents: [{
+                    parts: [{ text: textToSpeak }]
+                }],
+                generationConfig: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                        voiceConfig: {
+                            prebuiltVoiceConfig: { voiceName: "Charon" } // Voz "Charon" para un tono informativo y masculino
+                        }
+                    }
+                },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+
+            // Usar la clave de API proporcionada por el usuario
+            const apiKey = "AIzaSyAGM24v3Tg7U88W2feEB08k4dK5FreTJ4U";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+
+            const maxRetries = 5;
+            let retryCount = 0;
+            let delay = 1000;
+            const timeoutMs = 15000; // Tiempo de espera de 15 segundos para TTS
+
+            while (retryCount < maxRetries) {
+                const controller = new AbortController();
+                const id = setTimeout(() => controller.abort(), timeoutMs); // Establecer timeout
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        signal: controller.signal // Adjuntar la señal de aborto
+                    });
+                    clearTimeout(id); // Limpiar el timeout si la petición se completa a tiempo
+
+                    if (!response.ok) {
+                        // Intentar obtener más detalles del error si no es una respuesta OK
+                        const errorBody = await response.text();
+                        console.error(`TTS: Error de cliente (${response.status}): ${errorBody}`);
+
+                        if (response.status >= 400 && response.status < 500) {
+                            // Si es un error de cliente (ej. 401 Unauthorized, 403 Forbidden)
+                            throw new Error(`Error de la API TTS: ${response.statusText} - ${errorBody.substring(0, Math.min(errorBody.length, 100))}...`);
+                        } else if (response.status >= 500) {
+                            // Si es un error del servidor, reintentar
+                            console.warn(`TTS: Intento ${retryCount + 1} fallido con estado ${response.status}. Reintentando en ${delay / 1000}s...`);
+                            await new Promise(res => setTimeout(res, delay));
+                            delay *= 2;
+                            retryCount++;
+                            continue;
+                        } else {
+                            // Otros errores inesperados
+                            throw new Error(`Error de la API TTS: ${response.statusText}`);
+                        }
+                    }
+
+                    const result = await response.json();
+                    const part = result?.candidates?.[0]?.content?.parts?.[0];
+                    const audioData = part?.inlineData?.data;
+                    const mimeType = part?.inlineData?.mimeType;
+
+                    if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                        console.log("callGeminiTTSAPI: Audio data recibido. Longitud:", audioData.length, "MimeType:", mimeType);
+                        return { audioData, mimeType };
+                    } else {
+                        console.error("callGeminiTTSAPI: Estructura de respuesta TTS inesperada o sin audio. Resultado:", result);
+                        return null;
+                    }
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        console.error("API TTS: La solicitud excedió el tiempo límite.");
+                        throw new Error("Lo siento, la generación de voz excedió el tiempo límite.");
+                    }
+                    console.error("callGeminiTTSAPI: Error al llamar a la API TTS de Gemini:", error);
+                    if (error instanceof TypeError) {
+                        console.error("callGeminiTTSAPI: Posible error de red o CORS:", error.message);
+                    } else if (error.response) {
+                        try {
+                            const errorBody = await error.response.text();
+                            console.error("callGeminiTTSAPI: Respuesta de error del servidor:", errorBody);
+                        } catch (e) {
+                            console.error("callGeminiTTSAPI: No se pudo leer el cuerpo del error de la respuesta.");
+                        }
+                    }
+                    if (retryCount < maxRetries - 1) {
+                        console.warn(`TTS: Intento ${retryCount + 1} fallido. Reintentando en ${delay / 1000}s...`);
+                        await new Promise(res => setTimeout(res, delay));
+                        delay *= 2;
+                        retryCount++;
+                    } else {
+                        return null;
+                    }
+                }
+            }
+            return null;
+        }
+
+
+        // Función para manejar el envío de mensajes
+        async function sendMessage() {
+            const message = userInput.value.trim();
+            if (message === '') return;
+
+            displayMessage(message, 'user');
+            userInput.value = ''; // Limpiar el input
+
+            showLoading(); // Mostrar indicador de carga
+
+            try {
+                // 1. Obtener la respuesta de texto del LLM
+                const assistantResponseText = await callGeminiTextAPI(message);
+                displayMessage(assistantResponseText, 'assistant');
+
+                // 2. Convertir la respuesta de texto a voz usando la API TTS
+                // Solo intentar TTS si la respuesta de texto es válida y no un mensaje de error
+                if (assistantResponseText && !assistantResponseText.startsWith("Lo siento,")) {
+                    const audioResult = await callGeminiTTSAPI(assistantResponseText);
+                    if (audioResult) {
+                        await playAudio(audioResult.audioData, audioResult.mimeType);
+                    } else {
+                        console.warn("No se pudo generar audio para la respuesta TTS. Revisar logs de callGeminiTTSAPI.");
+                    }
+                } else {
+                    console.warn("No se intentó generar audio TTS porque la respuesta de texto fue vacía o un mensaje de error.");
+                }
+
+            } catch (error) {
+                console.error("Error general en sendMessage:", error);
+                displayMessage(`Lo siento, ocurrió un error: ${error.message || "desconocido"}. Por favor, inténtalo de nuevo.`, 'assistant');
+            } finally {
+                hideLoading(); // Ocultar indicador de carga SIEMPRE
+            }
+        }
+
+        // --- Lógica de Reconocimiento de Voz ---
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'es-ES';
+
+            recognition.onstart = () => {
+                isRecording = true;
+                microphoneButton.classList.add('recording');
+                userInput.placeholder = "Escuchando...";
+                userInput.disabled = true;
+                sendButton.disabled = true;
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                userInput.value = transcript;
+                isRecording = false;
+                microphoneButton.classList.remove('recording');
+                userInput.placeholder = "Escribe tu mensaje o presiona el micrófono...";
+                userInput.disabled = false;
+                sendButton.disabled = false;
+                sendMessage();
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Error en reconocimiento de voz:', event.error);
+                let errorMessage = "Error en el reconocimiento de voz.";
+                if (event.error === 'no-speech') {
+                    errorMessage = "No se detectó voz. Inténtalo de nuevo.";
+                } else if (event.error === 'not-allowed') {
+                    errorMessage = "Acceso al micrófono denegado. Por favor, permite el acceso.";
+                }
+                displayMessage(errorMessage, 'assistant');
+                isRecording = false;
+                microphoneButton.classList.remove('recording');
+                userInput.placeholder = "Escribe tu mensaje o presiona el micrófono...";
+                userInput.disabled = false;
+                sendButton.disabled = false;
+            };
+
+            recognition.onend = () => {
+                if (isRecording) {
+                    isRecording = false;
+                    microphoneButton.classList.remove('recording');
+                    userInput.placeholder = "Escribe tu mensaje o presiona el micrófono...";
+                    userInput.disabled = false;
+                    sendButton.disabled = false;
+                }
+            };
+
+            microphoneButton.addEventListener('click', () => {
+                if (isRecording) {
+                    recognition.stop();
+                } else {
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                        console.error("Error al iniciar el reconocimiento de voz:", e);
+                        displayMessage("No se pudo iniciar el micrófono. Asegúrate de haber concedido permiso y que no esté en uso por otra aplicación.", 'assistant');
+                        isRecording = false;
+                        microphoneButton.classList.remove('recording');
+                        userInput.placeholder = "Escribe tu mensaje o presiona el micrófono...";
+                        userInput.disabled = false;
+                        sendButton.disabled = false;
+                    }
+                }
+            });
+
+        } else {
+            microphoneButton.disabled = true;
+            microphoneButton.title = "Tu navegador no soporta el reconocimiento de voz.";
+            displayMessage("Tu navegador no soporta el reconocimiento de voz. Por favor, usa la entrada de texto.", 'assistant');
+        }
+
+        // Event listeners existentes
+        sendButton.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Asegurarse de que el input esté enfocado al cargar la página
+        window.onload = () => {
+            userInput.focus();
+        };
+    </script>
+</body>
+</html>
